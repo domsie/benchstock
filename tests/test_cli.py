@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import closing
 import csv
 import io
 import json
@@ -129,7 +130,7 @@ class CommandLineTests(unittest.TestCase):
         self.call("item", "list", db=empty, expected=2)
         self.assertEqual(empty.read_bytes(), b"")
         unrelated = self.path / "unrelated.db"
-        with sqlite3.connect(unrelated) as connection:
+        with closing(sqlite3.connect(unrelated)) as connection, connection:
             connection.execute("CREATE TABLE other_project (value TEXT)")
         before = unrelated.read_bytes()
         self.call("item", "list", db=unrelated, expected=2)

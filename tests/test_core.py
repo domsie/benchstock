@@ -1,6 +1,7 @@
 """Behavioural checks for stock integrity, transactions and kit lifecycles."""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -191,14 +192,14 @@ class InventoryTests(unittest.TestCase):
         self.inventory.reserve_kit('K1')
         before = self.inventory.export_snapshot()
         # Inject a storage failure on the second item, after the first changed.
-        with sqlite3.connect(self.database) as fault:
+        with closing(sqlite3.connect(self.database)) as fault, fault:
             fault.execute("CREATE TRIGGER reject_movement BEFORE INSERT ON movements "
                           "WHEN NEW.sku = 'B' AND NEW.kit_code IS NOT NULL "
                           "BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END")
         with self.assertRaises(sqlite3.IntegrityError):
             self.inventory.consume_kit('K1')
         self.assertEqual(self.inventory.export_snapshot(), before)
-        with sqlite3.connect(self.database) as fault:
+        with closing(sqlite3.connect(self.database)) as fault, fault:
             fault.execute('DROP TRIGGER reject_movement')
         self.inventory.consume_kit('K1')
         self.assertEqual([i['on_hand'] for i in self.inventory.list_items()], [8, 7])
@@ -240,7 +241,7 @@ class InventoryTests(unittest.TestCase):
         # WAL allows a writer to commit while the export's read snapshot remains
         # open. This makes a mixed-state export observable if its transaction is
         # accidentally removed.
-        with sqlite3.connect(self.database) as configuration:
+        with closing(sqlite3.connect(self.database)) as configuration, configuration:
             self.assertEqual(configuration.execute('PRAGMA journal_mode=WAL').fetchone()[0], 'wal')
         with Inventory(self.database, initialize=False) as writer:
             original_read = self.inventory.list_items
@@ -285,7 +286,7 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(self.database.read_bytes(), b'')
 
     def test_unknown_database_is_not_modified(self):
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute('CREATE TABLE unrelated (value TEXT)')
             connection.execute("INSERT INTO unrelated VALUES ('preserve me')")
         before = self.database.read_bytes()
@@ -297,7 +298,7 @@ class SchemaTests(unittest.TestCase):
     def test_newer_schema_is_not_modified(self):
         with Inventory(self.database):
             pass
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute('PRAGMA user_version = 2')
         before = self.database.read_bytes()
         for initialise in (True, False):
@@ -306,7 +307,7 @@ class SchemaTests(unittest.TestCase):
             self.assertEqual(self.database.read_bytes(), before)
 
     def test_schema_marker_alone_does_not_make_an_unrelated_db_valid(self):
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute(f'PRAGMA application_id = {APPLICATION_ID}')
             connection.execute('PRAGMA user_version = 1')
             connection.execute('CREATE TABLE items (sku TEXT)')
@@ -318,7 +319,7 @@ class SchemaTests(unittest.TestCase):
     def test_unexpected_table_is_rejected_even_with_a_sqlite_like_name(self):
         with Inventory(self.database):
             pass
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.execute('CREATE TABLE sqlitex_extra (value TEXT)')
         before = self.database.read_bytes()
         with self.assertRaises(ValidationError):
