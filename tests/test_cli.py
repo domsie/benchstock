@@ -186,6 +186,15 @@ class CommandLineTests(unittest.TestCase):
         self.call("init", db=self.path, expected=2)
         self.call("init", db=Path(":memory:"), expected=2)
 
+    def test_export_refuses_a_symlink_loop_without_traceback(self) -> None:
+        target = self.path / "loop.csv"
+        try:
+            target.symlink_to(target.name)
+        except (OSError, NotImplementedError):
+            self.skipTest("This environment does not allow creating symbolic links")
+        self.call("export", "--format", "csv", "--output", str(target), expected=2)
+        self.assertTrue(target.is_symlink())
+
     def test_help_does_not_create_database(self) -> None:
         missing = self.path / "no-help-db" / "db.sqlite"
         for command in (("--help",), ("kit", "reserve", "--help")):

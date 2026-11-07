@@ -13,13 +13,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", required=True, type=Path, help="New database path; existing files are refused")
     args = parser.parse_args()
-    database = args.db.resolve()
     try:
+        database = args.db.resolve()
         database.parent.mkdir(parents=True, exist_ok=True)
         # Claim the path before initialisation, so a concurrent file cannot be reset.
         descriptor = os.open(database, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         os.close(descriptor)
-    except OSError as error:
+    except (OSError, RuntimeError) as error:
         print(f"demo: {error}", file=sys.stderr)
         return 2
 

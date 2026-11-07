@@ -203,8 +203,12 @@ def _export(args: argparse.Namespace, snapshot: dict[str, Any]) -> None:
     if args.output is None:
         sys.stdout.write(text)
         return
-    target = args.output.resolve()
-    database = args.db.resolve()
+    try:
+        target = args.output.resolve()
+        database = args.db.resolve()
+    except RuntimeError as error:
+        # pathlib on Python 3.11/3.12 reports a symlink loop as RuntimeError.
+        raise ValidationError(str(error)) from error
     protected = {database, *(Path(str(database) + suffix) for suffix in ("-wal", "-shm", "-journal"))}
     if target in protected:
         raise ValidationError("Export path must differ from the database and its sidecar files.")
