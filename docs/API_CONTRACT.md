@@ -7,8 +7,9 @@ Python 3.11+; standard library at runtime and for tests. The package lives direc
 
 ## Core
 
-`benchstock.core.Inventory(database: str | Path)` is a context manager and has `close()`.
+`benchstock.core.Inventory(database: str | Path, *, initialize=True)` is a context manager and has `close()`.
 Construction connects, validates/creates schema v1, enables foreign keys and a bounded busy timeout.
+`initialize=False` must open only an existing recognised database, using SQLite `mode=rw`; it never creates or initialises a missing/empty/unknown file. The CLI uses this mode except for `init`. The core never creates parent directories.
 Reject unknown/newer schemas without rewriting them. Use an explicit immediate transaction for each mutation.
 
 All public methods return JSON-serialisable dictionaries/lists; `InventoryError` is the base expected error, with `ValidationError`, `NotFoundError`, `ConflictError`.
